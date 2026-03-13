@@ -31,7 +31,6 @@ public:
         auto instance = _wires->lookupInstance(name);
         if (instance) {
             auto renderer = CreateWireRender(_wires, instance);
-            renderer->SetVisible(false);
             _chip_render_list.push_back(renderer);
         }
     }
