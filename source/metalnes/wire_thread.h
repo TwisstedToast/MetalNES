@@ -98,7 +98,7 @@ protected:
 
     wire_module_ptr _wires;
     dispatch_queue _queue;
-    int _stepCount = 1024;
+    int _stepCount = 8192;
     std::atomic<bool> _running;
     std::atomic<bool> _done;
 

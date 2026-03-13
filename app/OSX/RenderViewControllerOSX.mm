@@ -2,12 +2,14 @@
 
 #import <GLKit/GLKit.h>
 #import <GameController/GameController.h>
+#include <vector>
 #include <sys/stat.h>
 #include <sys/types.h>
 #import "RenderViewControllerOSX.h"
 
 #include "render/context.h"
 #include "render/metal/context_metal.h"
+#include "Core/Path.h"
 #include "keycode_osx.h"
 #include "../external/imgui/imgui.h"
 #include "../external/imgui/imgui_impl_osx.h"
@@ -27,6 +29,9 @@ static bool GetApplicationSupportDir(std::string &user_dir)
     for (int i=0; i < paths.count; i++)
     {
         NSString *bundleId = [NSBundle mainBundle].bundleIdentifier;
+        if (!bundleId) {
+            bundleId = @"MetalNes";
+        }
         NSString *resolvedPath = [paths objectAtIndex:i];
         NSString *dir = [resolvedPath stringByAppendingPathComponent:bundleId];
              
@@ -41,6 +46,68 @@ static bool GetApplicationSupportDir(std::string &user_dir)
         }
     }
     return false;
+}
+
+static bool HasDataDirectory(const std::string &dir)
+{
+    if (dir.empty()) {
+        return false;
+    }
+
+    struct stat info;
+    std::string dataDir = Core::Path::Combine(dir, "data");
+    return stat(dataDir.c_str(), &info) == 0 && S_ISDIR(info.st_mode);
+}
+
+static std::string FindResourceDir()
+{
+    auto resolveFromBase = [](const std::string &base) -> std::string
+    {
+        std::string candidate = Core::Path::RemoveTrailingSlash(base);
+        for (int i = 0; i < 6 && !candidate.empty(); i++)
+        {
+            if (HasDataDirectory(candidate))
+            {
+                return candidate;
+            }
+
+            std::string parent = Core::Path::GetDirectory(candidate);
+            if (parent.empty() || parent == candidate)
+            {
+                break;
+            }
+            candidate = parent;
+        }
+        return std::string();
+    };
+
+    std::vector<std::string> bases;
+
+    NSString *bundleResourcePath = [[NSBundle mainBundle] resourcePath];
+    if (bundleResourcePath) {
+        bases.push_back([bundleResourcePath UTF8String]);
+    }
+
+    NSString *executablePath = [[NSBundle mainBundle] executablePath];
+    if (executablePath) {
+        bases.push_back(Core::Path::GetDirectory([executablePath UTF8String]));
+    }
+
+    NSString *cwd = [[NSFileManager defaultManager] currentDirectoryPath];
+    if (cwd) {
+        bases.push_back([cwd UTF8String]);
+    }
+
+    for (const std::string &base : bases)
+    {
+        std::string resolved = resolveFromBase(base);
+        if (!resolved.empty())
+        {
+            return resolved;
+        }
+    }
+
+    return ".";
 }
 
 static int readGamePad(GCExtendedGamepad *pad)
@@ -75,6 +142,11 @@ int readGamePad(int index)
     return readGamePad(controller.extendedGamepad);
 }
 
+static bool HasImGuiContext()
+{
+    return ImGui::GetCurrentContext() != nullptr;
+}
+
 
 
 @implementation RenderViewControllerOSX
@@ -89,8 +161,16 @@ int readGamePad(int index)
     
 }
 
+- (void)loadView
+{
+    self.view = [[NSView alloc] initWithFrame:NSMakeRect(0, 0, 1280, 720)];
+}
+
 - (void)flagsChanged:(NSEvent *)event
 {
+    if (!HasImGuiContext())
+        return;
+
     ImGuiIO& io = ImGui::GetIO();
     unsigned int flags = [event modifierFlags] & NSEventModifierFlagDeviceIndependentFlagsMask;
 
@@ -114,6 +194,9 @@ int readGamePad(int index)
 
 - (void)keyDown:(NSEvent *)event
 {
+    if (!HasImGuiContext())
+        return;
+
     ImGui_ImplOSX_HandleEvent(event, self.view);
 
     ImGuiIO& io = ImGui::GetIO();
@@ -140,6 +223,9 @@ int readGamePad(int index)
 
 - (void)keyUp:(NSEvent *)event
 {
+    if (!HasImGuiContext())
+        return;
+
     ImGuiIO& io = ImGui::GetIO();
     io.KeyCtrl  = (event.modifierFlags & NSEventModifierFlagControl) != 0;
     io.KeyShift = (event.modifierFlags & NSEventModifierFlagShift) != 0;
@@ -162,7 +248,9 @@ int readGamePad(int index)
 
 #define HANDLE_EVENT( __name) \
     - (void)__name:(NSEvent *)event {   \
-        ImGui_ImplOSX_HandleEvent(event, self.view);    \
+        if (HasImGuiContext()) { \
+            ImGui_ImplOSX_HandleEvent(event, self.view);    \
+        } \
     }   
 
 
@@ -183,18 +271,27 @@ HANDLE_EVENT(scrollWheel)
 - (void)viewDidLoad
 {
     [super viewDidLoad];
+#ifndef NDEBUG
+    NSLog(@"RenderViewControllerOSX::viewDidLoad");
+#endif
 
-    
-    _resourceDir = [[[NSBundle mainBundle] resourcePath] UTF8String];
+    _resourceDir = FindResourceDir();
     GetApplicationSupportDir(_userDir);
     
     
     [self initMetal];
-    
+
     
     _context->SetAssetDir(_resourceDir);
 
     std::vector<std::string> args;
+    for (NSString *arg in self.launchArgs)
+    {
+        if (arg)
+        {
+            args.push_back([arg UTF8String]);
+        }
+    }
     AppInit(_context, _resourceDir, _userDir, args);
     ImGui_ImplOSX_Init();
     
@@ -215,7 +312,7 @@ HANDLE_EVENT(scrollWheel)
 
 -(void)viewWillDisappear
 {
-    AppShutdown();
+    [super viewWillDisappear];
 }
 
 -(void)initMetal
@@ -313,7 +410,16 @@ HANDLE_EVENT(scrollWheel)
 - (void)drawInMTKView:(nonnull MTKView *)view
 {
     @autoreleasepool {
-        
+#ifndef NDEBUG
+        static int s_draw_frames = 0;
+        if (s_draw_frames < 5) {
+            NSLog(@"RenderViewControllerOSX::drawInMTKView frame %d size=(%.1f, %.1f)",
+                  s_draw_frames,
+                  view.drawableSize.width,
+                  view.drawableSize.height);
+            s_draw_frames++;
+        }
+#endif
 
        
      //   [self updateControllers];

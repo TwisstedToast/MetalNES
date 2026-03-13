@@ -7,6 +7,8 @@
 // Our macOS view controller.
 @interface RenderViewControllerOSX : NSViewController <MTKViewDelegate, EventDelegate>
 
+@property (copy) NSArray<NSString *> *launchArgs;
+
 
 
 @end

@@ -40,6 +40,14 @@ int main(int argc, const char *argv[])
         args.push_back(std::string(argv[i]));
     }
 
+#if __APPLE__
+    if (!_context)
+    {
+        fprintf(stderr, "MetalNes: no render context is created in app/Linux/main.cpp on macOS. Build the Cocoa app path instead.\n");
+        return 1;
+    }
+#endif
+
     AppInit(_context, _resourceDir, _userDir, args);
 
     while (!AppShouldQuit())

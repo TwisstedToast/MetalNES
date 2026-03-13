@@ -30,7 +30,9 @@ public:
     {
         auto instance = _wires->lookupInstance(name);
         if (instance) {
-            _chip_render_list.push_back( CreateWireRender(_wires, instance) );
+            auto renderer = CreateWireRender(_wires, instance);
+            renderer->SetVisible(false);
+            _chip_render_list.push_back(renderer);
         }
     }
     
@@ -42,6 +44,7 @@ public:
     void onGuiNodeList();
     void onGuiNodeInfo();
     void onGuiCanvas();
+    virtual bool onViewMenu() override;
     
     virtual void onGui(render::ContextPtr context) override;
     
@@ -61,6 +64,20 @@ protected:
     
     wire_instance_ptr _selected_instance;
 };
+
+bool main_wire_gui::onViewMenu()
+{
+    bool has_items = false;
+    for (auto chip : _chip_render_list)
+    {
+        has_items = true;
+        if (ImGui::MenuItem( chip->GetName(), NULL,  chip->IsVisible() ))
+        {
+            chip->SetVisible( !chip->IsVisible() );
+        }
+    }
+    return has_items;
+}
 
 
 
@@ -845,4 +862,3 @@ wire_gui_ptr CreateWireGui(wire_module_ptr wires)
 
 
 } // namespace
-

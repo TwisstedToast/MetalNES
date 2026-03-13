@@ -420,9 +420,10 @@ public:
         float scalex = (_bb.max.x - _bb.min.x);
         float scaley = (_bb.max.y - _bb.min.y);
         _scale = std::max(scalex, scaley);
+        _forceRedraw = true;
     }
     
-    void draw(render::ContextPtr context, const Matrix44 &projection);
+    void draw(render::ContextPtr context, const Matrix44 &projection, int render_target_width, int render_target_height);
 
     void updateTransistors(render::ContextPtr context);
     void updateWires(render::ContextPtr context);
@@ -443,6 +444,10 @@ public:
     virtual void SetVisible(bool visible) override
     {
         _window_open = visible;
+        if (visible)
+        {
+            _forceRedraw = true;
+        }
     }
 
     virtual void onGui(render::ContextPtr context) override;
@@ -454,6 +459,7 @@ public:
     {
         _selected_nodes = nodes;
         _updateSelectedNodes = true;
+        _forceRedraw = true;
         
         bbox_reset(_bb);
         for (auto seg : _segments)
@@ -517,6 +523,11 @@ public:
     std::unordered_set<nodeID> _selected_nodes;
     
     render::ShaderPtr _shader;
+    bool _forceRedraw = true;
+    double _lastRedrawTime = -1.0;
+    int _lastRenderedWireTime = -1;
+    int _lastRenderTargetWidth = 0;
+    int _lastRenderTargetHeight = 0;
     
     
     DynamicMesh _vd_layers;
@@ -753,6 +764,14 @@ void wire_render::onGui(render::ContextPtr context)
         ImGui::End();
         return;
     }
+
+    int previousLayerMask = layerMask;
+    bool previousShowTransistors = _showTransistors;
+    bool previousShowActiveNodes = _showActiveNodes;
+    bool previousShowUnnamedNodes = _showUnnamedNodes;
+    float previousScale = _scale;
+    float previousTx = _tx;
+    float previousTy = _ty;
     
     if (ImGui::BeginMenuBar())
     {
@@ -823,9 +842,34 @@ void wire_render::onGui(render::ContextPtr context)
     
     Matrix44 projection = ComputeMatrix(canvas_sz);
 
-    
-    // update texture
-    draw(context, projection);
+    const int render_target_width = std::max(256, std::min(1024, (int)canvas_sz.x));
+    const int render_target_height = std::max(256, std::min(1024, (int)canvas_sz.y));
+    const bool render_target_changed =
+        render_target_width != _lastRenderTargetWidth ||
+        render_target_height != _lastRenderTargetHeight;
+    const int wire_time = _wires->getTime();
+    const double now = ImGui::GetTime();
+    const bool simulation_advanced = wire_time != _lastRenderedWireTime;
+    const bool needs_redraw =
+        render_target_changed ||
+        _forceRedraw ||
+        _updateSelectedNodes ||
+        _lastRedrawTime < 0.0 ||
+        !_texture ||
+        !_texture_overlay ||
+        !_state_texture ||
+        !_layer_texture ||
+        (simulation_advanced && (now - _lastRedrawTime) >= (1.0 / 12.0));
+
+    if (needs_redraw)
+    {
+        draw(context, projection, render_target_width, render_target_height);
+        _lastRenderTargetWidth = render_target_width;
+        _lastRenderTargetHeight = render_target_height;
+        _lastRenderedWireTime = wire_time;
+        _lastRedrawTime = now;
+        _forceRedraw = false;
+    }
 
     draw_list->AddImage(_texture.get(),
                         canvas_p0, canvas_p1,
@@ -1035,8 +1079,18 @@ void wire_render::onGui(render::ContextPtr context)
 
     }
     
-    
-    
+    if (previousLayerMask != layerMask ||
+        previousShowTransistors != _showTransistors ||
+        previousShowActiveNodes != _showActiveNodes ||
+        previousShowUnnamedNodes != _showUnnamedNodes ||
+        previousScale != _scale ||
+        previousTx != _tx ||
+        previousTy != _ty ||
+        _updateSelectedNodes)
+    {
+        _forceRedraw = true;
+    }
+
     ImGui::End();
     
 }
@@ -1285,19 +1339,19 @@ void wire_render::updateHighlights(render::ContextPtr context)
     }
 }
 
-void wire_render::draw(render::ContextPtr context, const Matrix44 &projection)
+void wire_render::draw(render::ContextPtr context, const Matrix44 &projection, int render_target_width, int render_target_height)
 {
     using namespace render;
     
-    if (!_texture)
+    if (!_texture || _texture->GetWidth() != render_target_width || _texture->GetHeight() != render_target_height)
     {
-        _texture = context->CreateRenderTarget("chipsim", 2048, 2048, render::PixelFormat::RGBA8Unorm);
+        _texture = context->CreateRenderTarget("chipsim", render_target_width, render_target_height, render::PixelFormat::RGBA8Unorm);
     }
     
     
-    if (!_texture_overlay)
+    if (!_texture_overlay || _texture_overlay->GetWidth() != render_target_width || _texture_overlay->GetHeight() != render_target_height)
     {
-        _texture_overlay = context->CreateRenderTarget("chipsim-overlay", 2048, 2048, render::PixelFormat::RGBA8Unorm);
+        _texture_overlay = context->CreateRenderTarget("chipsim-overlay", render_target_width, render_target_height, render::PixelFormat::RGBA8Unorm);
     }
     
     {
@@ -1352,11 +1406,14 @@ void wire_render::draw(render::ContextPtr context, const Matrix44 &projection)
         
         if (!_layer_texture)
         {
-    //        auto image = _state_texture_image;
             _layer_texture = context->CreateTexture("chipsim-layer", width, height, render::PixelFormat::RGBA8Unorm, _layer_texture_data.data());
+            _lastLayerMask = layerMask;
         }
-
-        context->UploadTextureData(_layer_texture, _layer_texture_data.data(),  width, height, width * sizeof(_layer_texture_data[0]) );
+        else if (_lastLayerMask != layerMask)
+        {
+            context->UploadTextureData(_layer_texture, _layer_texture_data.data(),  width, height, width * sizeof(_layer_texture_data[0]) );
+            _lastLayerMask = layerMask;
+        }
     }
     
     
@@ -1370,7 +1427,7 @@ void wire_render::draw(render::ContextPtr context, const Matrix44 &projection)
     }
 
     
-    if (_vd_transistors.Empty())
+    if (_showTransistors && _vd_transistors.Empty())
     {
         updateTransistors(context);
     }
@@ -1380,7 +1437,7 @@ void wire_render::draw(render::ContextPtr context, const Matrix44 &projection)
         updateWires(context);
     }
 
-    if (_vd_active.Empty())
+    if ((_showActiveNodes || _showUnnamedNodes) && _vd_active.Empty())
     {
         updateActiveWires(context);
     }

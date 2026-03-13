@@ -40,13 +40,9 @@ public:
             if (_rw)
             {
                 int addr = _a;
-                int data = _rom->readByte(addr);;
+                int data = _rom->readByte(addr);
                 __d = data;
             }
-        }
-        else
-        {
-    //        floatBits(_d);
         }
 
     }

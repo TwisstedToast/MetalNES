@@ -6,7 +6,8 @@
 
 @interface AppDelegate : NSObject <NSApplicationDelegate>
 //
-@property (weak) IBOutlet NSWindow *window;
+@property (strong) NSWindow *window;
+@property (copy) NSArray<NSString *> *launchArgs;
 //
 //@property (weak) IBOutlet NSOpenGLView *glView;
 //

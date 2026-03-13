@@ -1,5 +1,6 @@
 
 #import "AppDelegate.h"
+#import "RenderViewControllerOSX.h"
 
 #import <AVFoundation/AVFoundation.h>
 #include <string>
@@ -20,19 +21,46 @@ void SetCurrentThreadName(const char* threadName)
 
 @implementation AppDelegate
 
+{
+    RenderViewControllerOSX *_viewController;
+}
+
 - (void)applicationWillFinishLaunching:(NSNotification *)notification
 {
 }
 
 - (void)applicationDidFinishLaunching:(NSNotification *)aNotification
 {
-    // Insert code here to initialize your application
+#ifndef NDEBUG
+    NSLog(@"AppDelegate::applicationDidFinishLaunching");
+#endif
+    NSRect frame = NSMakeRect(0, 0, 1280, 720);
+    NSUInteger styleMask = NSWindowStyleMaskTitled
+        | NSWindowStyleMaskClosable
+        | NSWindowStyleMaskMiniaturizable
+        | NSWindowStyleMaskResizable;
+
+    self.window = [[NSWindow alloc] initWithContentRect:frame
+                                              styleMask:styleMask
+                                                backing:NSBackingStoreBuffered
+                                                  defer:NO];
+    [self.window setTitle:@"MetalNes"];
+    [self.window center];
+
+    _viewController = [[RenderViewControllerOSX alloc] init];
+    _viewController.launchArgs = self.launchArgs;
+    (void)_viewController.view;
+#ifndef NDEBUG
+    NSLog(@"AppDelegate loaded content view %@", _viewController.view);
+#endif
+    [self.window setContentViewController:_viewController];
+    [self.window makeKeyAndOrderFront:nil];
+    [NSApp activateIgnoringOtherApps:YES];
 }
 
 
 - (void)applicationWillTerminate:(NSNotification *)aNotification {
-    // Insert code here to tear down your application
-//    AppShutdown();
+    AppShutdown();
 }
 
 - (NSApplicationTerminateReply)applicationShouldTerminate:(NSApplication *)app {
@@ -57,5 +85,3 @@ void SetCurrentThreadName(const char* threadName)
 
 
 @end
-
-

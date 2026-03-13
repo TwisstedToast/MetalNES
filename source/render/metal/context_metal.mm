@@ -838,7 +838,7 @@ public:
     id <MTLRenderPipelineState> _pipeline_state = nil;
     
     MTKView *_view;
-//    id<CAMetalDrawable> _currentDrawable;
+    id<CAMetalDrawable> _currentDrawable = nil;
     id <MTLDevice> _device;
     id <MTLCommandQueue> _commandQueue = nil;
     id <MTLCommandBuffer> _commandBuffer = nil;
@@ -2041,8 +2041,12 @@ id <MTLRenderCommandEncoder> MetalContext::GetEncoder()
     MTLRenderPassDescriptor *rpd;
     if (!m_renderTarget)
     {
-        // Obtain a renderPassDescriptor generated from the view's drawable textures
-        rpd = _view.currentRenderPassDescriptor;
+        _currentDrawable = _view.currentDrawable;
+        if (_currentDrawable == nil) {
+            return nil;
+        }
+        rpd = [MTLRenderPassDescriptor renderPassDescriptor];
+        rpd.colorAttachments[0].texture = _currentDrawable.texture;
         rpd.colorAttachments[0].storeAction = MTLStoreActionStore;
     }
     else
@@ -2107,6 +2111,7 @@ void MetalContext::EndCommandBuffer()
 //        [_commandBuffer enqueue];
         _commandBuffer = nil;
     }
+    _currentDrawable = nil;
 }
 
 
@@ -2197,9 +2202,9 @@ void MetalContext::SetView(MTKView *view)
 #if TARGET_OS_OSX
 
     NSWindow *window = view.window;
-    float scale = [window backingScaleFactor];
+    float scale = window ? [window backingScaleFactor] : 1.0f;
     
-    NSScreen *screen = window.screen;
+    NSScreen *screen = window ? window.screen : NSScreen.mainScreen;
     float maxEDR  = screen.maximumExtendedDynamicRangeColorComponentValue;
 #else
     UIWindow *window = view.window;
@@ -2228,9 +2233,8 @@ void MetalContext::SetView(MTKView *view)
     
 
 
-    auto drawable = view.currentDrawable;
-    auto texture = drawable.texture;
-    Size2D displaySize((int)texture.width, (int)texture.height);
+    CGSize drawableSize = view.drawableSize;
+    Size2D displaySize((int)drawableSize.width, (int)drawableSize.height);
 
     SetDisplayInfo({
         .size= displaySize,
@@ -2245,7 +2249,6 @@ void MetalContext::SetView(MTKView *view)
     
     
     SetScissorDisable();
-    SetRenderTarget(nullptr);
 }
 
 void MetalContext::NextFrame()
@@ -2268,8 +2271,6 @@ void MetalContext::NextFrame()
      {
          dispatch_semaphore_signal(block_sema);
      }];
-
-    SetRenderTarget(nullptr, "BeginScene");
 }
 
 
@@ -2289,9 +2290,20 @@ void MetalContext:: Present()
 
     {
         PROFILE_GPU()
-        id<CAMetalDrawable> drawable =  _view.currentDrawable;
+        id<CAMetalDrawable> drawable = _currentDrawable;
 
-        [cb presentDrawable:drawable];
+        if (drawable) {
+            [cb presentDrawable:drawable];
+        }
+#ifndef NDEBUG
+        else {
+            static int s_missing_drawable_frames = 0;
+            if (s_missing_drawable_frames < 5) {
+                fprintf(stderr, "MetalContext::Present: missing drawable\n");
+                s_missing_drawable_frames++;
+            }
+        }
+#endif
     }
     
     EndCommandBuffer();

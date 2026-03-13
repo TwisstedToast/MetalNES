@@ -32,6 +32,7 @@ public:
     std::mutex _mutex;
     std::vector<float> _samples;
     std::vector<SampleEntry> _sample_list;
+    bool _flush_pending = false;
     
     
     buffer_audio_device()
@@ -94,10 +95,8 @@ public:
         {
             std::lock_guard<std::mutex> lock(_mutex);
             _sample_list.push_back( {time, output} );
-//        log_printf("sample time:%d output:%f\n", time, output);
+            _flush_pending = true;
         }
-        
-        Flush();
     }
     
 
@@ -134,7 +133,7 @@ public:
     {
         std::lock_guard<std::mutex> lock(_mutex);
         
-        if (_sample_list.empty())
+        if (_sample_list.empty() || !_flush_pending)
             return;
         
         const auto &last = _sample_list.back();
@@ -151,11 +150,14 @@ public:
             _samples.push_back(sample);
             sample_pos++;
         }
+
+        _flush_pending = false;
         
     }
     
     virtual void saveAudio(std::string path) override
     {
+        Flush();
         std::lock_guard<std::mutex> lock(_mutex);
         
         if (AudioSaveToFile(path, _sample_rate, _samples.data(), _samples.size() ))
@@ -168,6 +170,7 @@ public:
     
     void PlayAudio()
     {
+        Flush();
         std::lock_guard<std::mutex> lock(_mutex);
 #ifdef __APPLE__
         AudioPlaySound( _sample_rate, _samples.data(), _samples.size() );
@@ -177,6 +180,7 @@ public:
     
     virtual void onGui(const std::string &state_path) override
     {
+        Flush();
         ImGuiWindowFlags window_flags = 0;
         
         ImGui::SetNextWindowSizeConstraints(ImVec2(64, 256),

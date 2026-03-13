@@ -250,7 +250,7 @@ void AppInit(render::ContextPtr context, std::string resource_dir, std::string d
         
 
 //        load_system("NES Test Cart (Official Nintendo) (U) [!].nes");
-        load_system("Super Mario Bros. (W) [!].nes");
+        load_system("nes-test-roms/other/nestest.nes");
 //        load_system("Donkey Kong (JU).nes");
 //        load_system("Excitebike (JU).nes");
 
@@ -300,7 +300,6 @@ void AppRender(render::ContextPtr context)
         ImGuiSupport_Render();
     }
 }
-
 
 
 

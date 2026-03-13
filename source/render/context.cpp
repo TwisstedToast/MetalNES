@@ -1,6 +1,7 @@
 
 #include "context.h"
 #include <assert.h>
+#include <stdio.h>
 
 #include "Core/Path.h"
 #include "Core/File.h"
@@ -23,6 +24,7 @@ ShaderPtr Context::LoadShaderFromFile(const std::string &path)
     std::string code;
     if (!Core::File::ReadAllText(full_path, code))
     {
+        fprintf(stderr, "Context::LoadShaderFromFile: could not read '%s'\n", full_path.c_str());
         assert(0);
         return nullptr;
     }
@@ -33,8 +35,12 @@ ShaderPtr Context::LoadShaderFromFile(const std::string &path)
         ShaderSource{ShaderType::Vertex,     full_path, code, "VS", "vs_3_0", "hlsl"},
         ShaderSource{ShaderType::Fragment,   full_path, code, "PS", "ps_3_0", "hlsl"}
     });
+    if (!result)
+    {
+        fprintf(stderr, "Context::LoadShaderFromFile: failed to compile '%s'\n", full_path.c_str());
+    }
     assert(result);
-    return shader;
+    return result ? shader : nullptr;
 }
 
 void Context::SetDisplayInfo(DisplayInfo info)

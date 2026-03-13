@@ -275,17 +275,20 @@ public:
             _pad1 = 0;
         }
 
-        int pc = (_cpu_pc);
-        log_printf("frame[%d] time:%d pc:%04X a:%02X x:%02X y:%02X p:%02X s:%02X frame-time:%.3fs\n", _frame,
-               timeFrame,
-               pc,
-                   emustate.cpu_a,
-                   emustate.cpu_x,
-                   emustate.cpu_y,
-                   emustate.cpu_ps,
-                   emustate.cpu_sp,
-               _frameTime
-                   );
+        if (_frame < 5 || (_frame % 60) == 0)
+        {
+            int pc = (_cpu_pc);
+            log_printf("frame[%d] time:%d pc:%04X a:%02X x:%02X y:%02X p:%02X s:%02X frame-time:%.3fs\n", _frame,
+                   timeFrame,
+                   pc,
+                       emustate.cpu_a,
+                       emustate.cpu_x,
+                       emustate.cpu_y,
+                       emustate.cpu_ps,
+                       emustate.cpu_sp,
+                   _frameTime
+                       );
+        }
 
         
         check_unit_test();

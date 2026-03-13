@@ -5,7 +5,9 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-set(CMAKE_BUILD_TYPE RelWithDebInfo )
+if (NOT CMAKE_CONFIGURATION_TYPES AND NOT CMAKE_BUILD_TYPE)
+    set(CMAKE_BUILD_TYPE RelWithDebInfo)
+endif()
 
 project(MetalNes LANGUAGES C CXX)
 
@@ -68,7 +70,7 @@ set(COMMON_SOURCE
 
 if (APPLE)
     set(PLATFORM_SOURCE
-        ${COMMON_SOURCE_DIR}/Platform/OSX/CoreAudio.mm
+        ${APP_SOURCE_DIR}/OSX/CoreAudio.mm
       )
 
 elseif (UNIX)
@@ -93,14 +95,23 @@ include_directories(
 
 if (APPLE)
 
+    set(OSX_APP_SOURCE
+        ${APP_SOURCE_DIR}/OSX/main.mm
+        ${APP_SOURCE_DIR}/OSX/AppDelegate.mm
+        ${APP_SOURCE_DIR}/OSX/RenderViewControllerOSX.mm
+        ${APP_SOURCE_DIR}/OSX/MetalView.mm
+        ${APP_SOURCE_DIR}/OSX/keycode_osx.mm
+        ${COMMON_SOURCE_DIR}/render/metal/context_metal.mm
+        ${IMGUI_SOURCE_DIR}/imgui_impl_osx.mm
+        )
+
 
     add_executable(MetalNes
         ${TRIANGLE_SOURCE}
         ${IMGUI_SOURCE}
         ${COMMON_SOURCE}
         ${PLATFORM_SOURCE}
-    #    ${APP_SOURCE_DIR}/OSX/main.mm
-        ${APP_SOURCE_DIR}/Linux/main.cpp
+        ${OSX_APP_SOURCE}
         )
 
     target_link_libraries(
@@ -199,5 +210,3 @@ elseif (WIN32)
 else()
     message(FATAL_ERROR "Target platform not supported")
 endif()
-
-

@@ -84,31 +84,6 @@ system_state::~system_state()
 
 
 
-static bool ToggleButton(const char *text, bool *state)
-{
-    bool toggled = false;
-    
-    if (*state)
-    {
-        ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(1.0f,0.0f,1.0f,1.0f));
-        ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4(1.0f,0.0f,1.0f,1.0f));
-        ImGui::PushStyleColor(ImGuiCol_ButtonActive, ImVec4(1.0f,0.0f,1.0f,1.0f));
-    }
-    
-    toggled = ImGui::Button(text);
-    
-    if (*state)
-    {
-        ImGui::PopStyleColor(3);
-    }
-    
-    if (toggled) {
-        *state = !*state;
-    }
-    
-    return toggled;
-}
-
 bool system_state::shouldQuit()
 {
     if (_handler_nes_system)
@@ -155,15 +130,10 @@ bool system_state::onGui(render::ContextPtr context)
     {
         if (ImGui::BeginMenu("View"))
         {
-            /*
-            for (auto chip : _chip_render_list)
+            if (_wire_gui)
             {
-                if (ImGui::MenuItem( chip->GetName(), NULL,  chip->IsVisible() ))
-                {
-                    chip->SetVisible( !chip->IsVisible() );
-                }
+                _wire_gui->onViewMenu();
             }
-            */
             
             if (ImGui::MenuItem( "IMGui Demo", NULL, _demo_window_open))
             {
@@ -198,8 +168,8 @@ bool system_state::onGui(render::ContextPtr context)
     }
     
 
-    bool running = _scheduler.isRunning();
-    if (ToggleButton("Run", &running))
+    const bool running = _scheduler.isRunning();
+    if (ImGui::Button(running ? "Pause" : "Run"))
     {
         _scheduler.toggleRunning();
     }
@@ -542,6 +512,4 @@ system_state_ptr system_state::Create(std::string system_def_dir, std::string st
 
 
 } // namespace
-
-
 

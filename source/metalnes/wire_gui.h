@@ -13,6 +13,11 @@ public:
     wire_gui() = default;
     virtual ~wire_gui() = default;
     
+    virtual bool onViewMenu()
+    {
+        return false;
+    }
+
     virtual void onGui(render::ContextPtr context) = 0;
 };
 

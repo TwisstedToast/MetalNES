@@ -288,7 +288,26 @@ void    ImGuiSupport_Render()
         return;
     
     ImGui::Render();
-    ImGuiRenderDrawData(_renderer, ImGui::GetDrawData());
+    ImDrawData *draw_data = ImGui::GetDrawData();
+#ifndef NDEBUG
+    static int s_debug_frames = 0;
+    if (s_debug_frames < 5)
+    {
+        ImGuiIO &io = ImGui::GetIO();
+        fprintf(stderr,
+                "ImGui frame %d: display=(%.1f, %.1f) scale=(%.1f, %.1f) cmd_lists=%d vtx=%d idx=%d\n",
+                s_debug_frames,
+                io.DisplaySize.x,
+                io.DisplaySize.y,
+                io.DisplayFramebufferScale.x,
+                io.DisplayFramebufferScale.y,
+                draw_data ? draw_data->CmdListsCount : -1,
+                draw_data ? draw_data->TotalVtxCount : -1,
+                draw_data ? draw_data->TotalIdxCount : -1);
+        s_debug_frames++;
+    }
+#endif
+    ImGuiRenderDrawData(_renderer, draw_data);
 }
 
 void     ImGuiSupport_Shutdown()
@@ -327,6 +346,11 @@ ImFont*  ImGuiSupport_AddFontFromFile(const std::string &path, float size_pixels
 
 void     ImGuiSupport_Init(ContextPtr context, std::string assetDir, std::string userDir)
 {
+    if (!context)
+    {
+        fprintf(stderr, "ImGuiSupport_Init: render context is null.\n");
+        return;
+    }
     
     // Setup Dear ImGui context
     IMGUI_CHECKVERSION();
@@ -427,6 +451,11 @@ void     ImGuiSupport_Init(ContextPtr context, std::string assetDir, std::string
 
     
     auto _shader = context->LoadShaderFromFile("data/shaders/imgui.fx");
+    if (!_shader)
+    {
+        fprintf(stderr, "ImGuiSupport_Init: failed to create imgui shader.\n");
+        return;
+    }
     _renderer = new ImGuiRendererContext(context, _shader);
     ImGuiRenderInit( _renderer );
     

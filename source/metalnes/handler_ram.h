@@ -81,17 +81,7 @@ public:
                 int addr = _a;
                 int data = __d;
                 _ram->writeByte(addr, data);
-                
-//                if (verbose)
-//                {
-//                    int time = getFrameTime();
-//                    log_printf("[%02d] %08d  %s-write[%04X] = %02X\n", _frame,  time,  ram._name, (int)addr, (int)data  );
-//                }
             }
-        }
-        else
-        {
-    //        floatBits(_d);
         }
     }
 };
